@@ -1,0 +1,211 @@
+Option Compare Database
+Option Explicit
+
+Public Function BrowseFolder(Title As String, _
+    Optional InitialFolder As String = vbNullString) As String
+
+Dim V As Variant
+Dim InitFolder As String
+
+With Application.FileDialog(msoFileDialogFolderPicker)
+    .Title = Title
+    If Len(InitialFolder) > 0 Then
+        If Dir(InitialFolder, vbDirectory) <> vbNullString Then
+            InitFolder = InitialFolder
+            If Right(InitFolder, 1) <> "\" Then
+                InitFolder = InitFolder & "\"
+            End If
+            .InitialFileName = InitFolder
+        End If
+    End If
+    .Show
+    On Error Resume Next
+    Err.Clear
+    V = .SelectedItems(1)
+    If Err.Number <> 0 Then
+        V = vbNullString
+    End If
+End With
+BrowseFolder = CStr(V)
+End Function
+
+Public Function BrowseFile(Title As String, _
+    Optional InitialFolder As String = vbNullString) As String
+
+Dim V As Variant
+Dim InitFolder As String
+
+With Application.FileDialog(msoFileDialogFilePicker)
+    .Title = Title
+    If Len(InitialFolder) > 0 Then
+        If Dir(InitialFolder, vbDirectory) <> vbNullString Then
+            InitFolder = InitialFolder
+            If Right(InitFolder, 1) <> "\" Then
+                InitFolder = InitFolder & "\"
+            End If
+            .InitialFileName = InitFolder
+        End If
+    End If
+    .Show
+    On Error Resume Next
+    Err.Clear
+    V = .SelectedItems(1)
+    If Err.Number <> 0 Then
+        V = vbNullString
+    End If
+End With
+BrowseFile = CStr(V)
+End Function
+
+Public Sub ExportSingleWithoutFormatting(ByVal strTableName As String, ByVal strFilePath As String)
+Dim xlApp As Object, wkb As Object
+On Error GoTo Err
+
+DoCmd.TransferSpreadsheet _
+TransferType:=acExport, _
+SpreadsheetType:=acSpreadsheetTypeExcel12Xml, _
+TableName:=strTableName, _
+FileName:=strFilePath, _
+HasFieldNames:=True
+
+Set xlApp = CreateObject("Excel.Application")
+    With xlApp
+    .Visible = True
+    Set wkb = .Workbooks.Open(strFilePath)
+    End With
+
+Set wkb = Nothing
+Set xlApp = Nothing
+
+Exit Sub
+
+Err:
+    Application.DoCmd.SetWarnings True
+    On Error GoTo 0
+    Application.DoCmd.Close acForm, "frmWait", acSaveNo
+    VBA.MsgBox "Below error encountered:" & vbCrLf & Err.Number & vbCrLf & Err.Description, vbCritical + vbOKOnly, "Export Error"
+    End
+End Sub
+
+Public Sub CreateExportFile(ByVal sType As String)
+Dim xlApp As Object, wkb, ws As Object
+Dim db As DAO.Database
+Dim qdf As DAO.QueryDef
+Dim rs As DAO.Recordset
+Dim i, r, c, t, col As Double
+Set db = CurrentDb
+'strFilePath = Functions.Clean(strFilePath)
+
+
+On Error GoTo CreateNewObject
+Set xlApp = VBA.GetObject(, "Excel.Application")
+Resume RunExport
+
+RunExport:
+        xlApp.Visible = False
+        On Error GoTo 0
+        Set wkb = xlApp.Workbooks.Add
+        wkb.Application.CutCopyMode = False
+        wkb.Application.ScreenUpdating = False
+        wkb.Application.DisplayAlerts = False
+        wkb.Application.EnableEvents = False
+        wkb.Application.Calculation = -4135
+        
+        With wkb.Styles("Normal").Font
+            .Name = "Calibri"
+            .Size = 11
+        End With
+        
+    For Each qdf In db.QueryDefs
+        If VBA.InStr(1, qdf.Name, sType) > 0 Then
+            
+            Set ws = wkb.Worksheets.Add(After:=wkb.Sheets(wkb.Sheets.Count))
+            ws.Name = VBA.Replace(qdf.Name, "Qry_" & sType & "_", "")
+            
+            Set rs = db.OpenRecordset("SELECT DISTINCT * FROM [" & qdf.Name & "];")
+            c = rs.Fields.Count
+            For col = 0 To c - 1
+            ws.Cells(1, col + 1).Value = rs.Fields(col).Name
+            Next col
+            
+            ws.Range("A1", ws.Cells(1, c)).Font.Bold = True
+            With ws.Range("A1", ws.Cells(1, c)).Interior
+                .Pattern = 1
+                .PatternColorIndex = -4105
+                .ThemeColor = 1
+                .TintAndShade = -0.149998474074526
+                .PatternTintAndShade = 0
+            End With
+            
+            ws.Range("A2").CopyFromRecordset rs
+            ws.Range("A1", ws.Cells(ws.UsedRange.Rows.Count, ws.UsedRange.Columns.Count)).Columns.AutoFit
+            ws.Range("A1").Select
+            'If ws.UsedRange.Rows.Count > 1 Then
+            'Else: ws.Visible = xlHidden
+            'End If
+        End If
+    Next qdf
+
+For Each ws In wkb.Worksheets
+    If ws.Name = "Sheet1" Then
+        ws.Delete
+    End If
+Next ws
+
+GoTo SkipSaveFile
+'DeletFileIfExist strFilePath
+'wkb.SaveAs strFilePath
+'wkb.Activate
+'wkb.Application.CutCopyMode = False
+'wkb.Application.ScreenUpdating = True
+'wkb.Application.DisplayAlerts = True
+'wkb.Application.EnableEvents = True
+'wkb.Application.Calculation = -4105
+'wkb.Close (False)
+
+If xlApp.Workbooks.Count = 0 Then
+xlApp.Quit
+Set xlApp = Nothing
+Else
+xlApp.Visible = True
+End If
+Set wkb = Nothing
+Set ws = Nothing
+Application.Screen.ActiveForm.Requery
+Application.Screen.ActiveForm.Refresh
+Application.Screen.ActiveForm.Repaint
+Application.SysCmd acSysCmdClearStatus
+Exit Sub
+
+CreateNewObject:
+    Set xlApp = VBA.CreateObject("Excel.Application")
+    Resume RunExport
+SkipSaveFile:
+    xlApp.Visible = True
+    wkb.Activate
+    wkb.Application.CutCopyMode = False
+    wkb.Application.ScreenUpdating = True
+    wkb.Application.DisplayAlerts = True
+    wkb.Application.EnableEvents = True
+    wkb.Application.Calculation = -4105
+    Application.Screen.ActiveForm.Requery
+    Application.Screen.ActiveForm.Refresh
+    Application.Screen.ActiveForm.Repaint
+    Application.SysCmd acSysCmdClearStatus
+    End
+Err:
+    VBA.MsgBox "Error#" & VBA.CStr(Err.Number) & vbCrLf & Err.Description & vbCrLf & Err.Source, vbCritical + vbOKOnly, "Export Failed!"
+    xlApp.Visible = True
+    wkb.Activate
+    wkb.Application.CutCopyMode = False
+    wkb.Application.ScreenUpdating = True
+    wkb.Application.DisplayAlerts = True
+    wkb.Application.EnableEvents = True
+    wkb.Application.Calculation = -4105
+    Application.Screen.ActiveForm.Requery
+    Application.Screen.ActiveForm.Refresh
+    Application.Screen.ActiveForm.Repaint
+    Application.SysCmd acSysCmdClearStatus
+    End
+
+End Sub
