@@ -1,0 +1,136 @@
+Option Compare Database
+
+Public Type SYSTEMTIME
+    wYear As Integer
+    wMonth As Integer
+    wDayOfWeek As Integer
+    wDay As Integer
+    wHour As Integer
+    wMinute As Integer
+    wSecond As Integer
+    wMilliseconds As Integer
+End Type
+
+Public Type TIME_ZONE_INFORMATION
+    Bias As Long
+    StandardName(0 To 31) As Integer
+    StandardDate As SYSTEMTIME
+    StandardBias As Long
+    DaylightName(0 To 31) As Integer
+    DaylightDate As SYSTEMTIME
+    DaylightBias As Long
+End Type
+
+Public Enum TIME_ZONE
+    TIME_ZONE_ID_INVALID = 0
+    TIME_ZONE_STANDARD = 1
+    TIME_ZONE_DAYLIGHT = 2
+End Enum
+Public Type DYNAMIC_TIME_ZONE_INFORMATION
+    Bias As Long
+    StandardName As String
+    StandardDate As Date
+    StandardBias As Long
+    DaylightName As String
+    DaylightDate As Date
+    DaylightBias As Long
+    TimeZoneKeyName As String
+    DynamicDaylightTimeDisabled As Long
+End Type
+
+Public Declare PtrSafe Function GetTimeZoneInformationForYear Lib "kernel32" ( _
+    wYear As Integer, _
+    lpDynamicTimeZoneInformation As DYNAMIC_TIME_ZONE_INFORMATION, _
+    lpTimeZoneInformation As TIME_ZONE_INFORMATION _
+) As Long
+
+Public Declare PtrSafe Function GetTimeZoneInformation Lib "kernel32" _
+        (lpTimeZoneInformation As TIME_ZONE_INFORMATION) As Long
+
+Public Declare PtrSafe Sub GetSystemTime Lib "kernel32" _
+        (lpSystemTime As SYSTEMTIME)
+
+Public Function LocalOffsetFromGMT(Optional AsHours As Boolean = False, _
+  Optional AdjustForDST As Boolean = False) As Double
+    '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+    ' LocalOffsetFromGMT
+    ' This returns the amount of time in minutes (if AsHours is omitted or
+    ' false) or hours (if AsHours is True) that should be *added* to the
+    ' local time to get GMT. If AdjustForDST is missing or false,
+    ' the unmodified difference is returned. (e.g., Kansas City to London
+    ' is 6 hours normally, 5 hours during DST. If AdjustForDST is False,
+    ' the resultif 6 hours. If AdjustForDST is True, the result is 5 hours
+    ' if DST is in effect.)
+    ' Note that the return type of the function is a Double not a Long. This
+    ' is to accomodate those few places in the world where the GMT offset
+    ' is not an even hour, such as Newfoundland, Canada, where the offset is
+    ' on a half-hour displacement.
+    '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+    Dim TBias As Long
+    Dim TZI As TIME_ZONE_INFORMATION
+    Dim DST As TIME_ZONE
+    DST = GetTimeZoneInformation(TZI)
+
+    If DST = TIME_ZONE_DAYLIGHT Then
+        If AdjustForDST = True Then
+            TBias = TZI.Bias + TZI.DaylightBias
+        Else
+            TBias = TZI.Bias
+        End If
+    Else
+        TBias = TZI.Bias
+    End If
+    If AsHours = True Then
+        TBias = TBias / 60
+    End If
+
+    LocalOffsetFromGMT = TBias
+End Function
+
+Public Function GetUCTTimeDate() As Date
+    Dim UTCDateTime As String
+    Dim arrDT() As String
+    Dim http As Object
+    Dim UTCDate As String
+    Dim UTCTime As String
+
+    Const NetTime As String = "https://www.time.gov/"
+
+    On Error Resume Next
+    Set http = CreateObject("Microsoft.XMLHTTP")
+    On Error GoTo 0
+
+    http.Open "GET", NetTime & Now(), False, "", ""
+    http.Send
+
+    UTCDateTime = http.getResponseHeader("Date")
+    UTCDate = Mid(UTCDateTime, InStr(UTCDateTime, ",") + 2)
+    UTCDate = Left(UTCDate, InStrRev(UTCDate, " ") - 1)
+    UTCTime = Mid(UTCDate, InStrRev(UTCDate, " ") + 1)
+    UTCDate = Left(UTCDate, InStrRev(UTCDate, " ") - 1)
+    GetUCTTimeDate = DateValue(UTCDate) + TimeValue(UTCTime)
+End Function
+
+Public Function ClockDiff() As Double ' In Minutes
+    Dim InternetDT As Date
+    Dim UTC As Date
+    Dim off As Double
+
+    UTC = GetUCTTimeDate
+    off = LocalOffsetFromGMT(True, True)
+    InternetDT = DateAdd("h", -off, UTC)
+    ClockDiff = DateDiff("n", Now(), InternetDT)
+End Function
+
+Public Sub CheckClock()
+    Dim PcClockDiff As Double
+    Const TOLERANCE = 10 ' minutes
+
+    PcClockDiff = Abs(ClockDiff)
+    If PcClockDiff > TOLERANCE Then
+        MsgBox "Clock has been changed..."
+    Else
+        MsgBox "Clock is OK"
+    End If
+End Sub
