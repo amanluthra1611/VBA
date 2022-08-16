@@ -39,3 +39,31 @@ db.Execute "DELETE DISTINCTROW " + strSQL + " FROM [" & strTableName & "] WHERE 
 db.Execute "DELETE DISTINCTROW " + strSQL + " FROM [" & strTableName & "] WHERE (" + strSQLCriteria3 + ");"
 
 End Sub
+
+Public Sub MyQuery(ByVal strName As String)
+Dim db As DAO.Database
+Dim qdf As DAO.QueryDef
+Set db = CurrentDb
+For Each qdf In db.QueryDefs
+    If VBA.Left$(qdf.Name, 4) = "Pqry" And (strName = "Pass" Or strName = "Pqry") Then
+        Application.DoCmd.DeleteObject acQuery, qdf.Name
+    ElseIf qdf.Name = strName Then
+        Application.DoCmd.DeleteObject acQuery, qdf.Name
+    End If
+Next qdf
+
+End Sub
+
+Public Sub MyTable(ByVal strName As String)
+Dim db As DAO.Database
+Dim tdf As DAO.TableDef
+Set db = CurrentDb
+For Each tdf In db.TableDefs
+    If (VBA.Left$(tdf.Name, 5) = "#Temp" Or VBA.Left$(tdf.Name, 1) = "#" Or VBA.InStr(1, tdf.Name, "$_ImportErrors") > 0) And (strName = "Temp" Or strName = "#Temp") Then
+        Application.DoCmd.DeleteObject acTable, tdf.Name
+    ElseIf tdf.Name = strName Then
+        Application.DoCmd.DeleteObject acTable, tdf.Name
+    End If
+Next tdf
+
+End Sub
