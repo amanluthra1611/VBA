@@ -1,0 +1,41 @@
+Public Sub DeletFileIfExist(ByVal FilePath As String)
+Dim fso As Object
+Set fso = CreateObject("Scripting.FileSystemObject")
+If (fso.FileExists(FilePath)) Then
+    Kill FilePath
+End If
+End Sub
+
+Public Sub RemoveBlankRecords(ByVal strTableName As String)
+Dim db As DAO.Database
+Dim tdf As DAO.TableDef
+Dim fld As DAO.Field
+Dim rs As DAO.Recordset
+Dim strSQL, strSQLCriteria1, strSQLCriteria2, strSQLCriteria3 As String
+Dim l, c As Double
+Set db = CurrentDb
+strSQL = ""
+Set tdf = db.TableDefs(strTableName)
+    On Error Resume Next
+    For Each fld In tdf.Fields
+        If VBA.Trim$(fld.Name) <> "UniqueRecordID" And VBA.Trim$(fld.Name) <> "WorksheetTabName" Then
+            If strSQLCriteria1 = "" Or strSQLCriteria2 = "" Or strSQLCriteria3 = "" Then
+                strSQL = "[" + strTableName + "].[" + fld.Name + "]"
+                strSQLCriteria1 = strSQLCriteria1 + "Trim([" & strTableName & "].[" + fld.Name + "])="""" "
+                strSQLCriteria2 = strSQLCriteria2 + "[" & strTableName & "].[" + fld.Name + "]='dbText' "
+                strSQLCriteria3 = strSQLCriteria3 + "[" & strTableName & "].[" + fld.Name + "] IS NULL "
+            Else
+                strSQL = strSQL + ", [" + strTableName + "].[" + fld.Name + "]"
+                strSQLCriteria1 = strSQLCriteria1 + " AND Trim([" & strTableName & "].[" + fld.Name + "])="""" "
+                strSQLCriteria2 = strSQLCriteria2 + " AND [" & strTableName & "].[" + fld.Name + "]='dbText' "
+                strSQLCriteria3 = strSQLCriteria3 + " AND [" & strTableName & "].[" + fld.Name + "] IS NULL "
+            End If
+        End If
+    Next fld
+On Error GoTo 0
+
+db.Execute "DELETE DISTINCTROW " + strSQL + " FROM [" & strTableName & "] WHERE (" + strSQLCriteria1 + ");"
+db.Execute "DELETE DISTINCTROW " + strSQL + " FROM [" & strTableName & "] WHERE (" + strSQLCriteria2 + ");"
+db.Execute "DELETE DISTINCTROW " + strSQL + " FROM [" & strTableName & "] WHERE (" + strSQLCriteria3 + ");"
+
+End Sub
