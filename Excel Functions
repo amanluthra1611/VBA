@@ -1,0 +1,48 @@
+Option Explicit
+
+Public Function UserName() As String
+UserName = VBA.Environ$("UserName")
+End Function
+
+Public Function UserFullName() As String
+UserFullName = Application.UserName
+End Function
+
+Public Function UserNameByNetwork()
+Dim objNet As Object
+On Error Resume Next
+Set objNet = CreateObject("WScript.NetWork")
+UserNameByNetwork = objNet.UserName
+Set objNet = Nothing
+End Function
+
+Public Function LastRow(ByVal SheetName As String) As Double
+LastRow = ActiveWorkbook.Sheets(SheetName).UsedRange.Rows.Count
+End Function
+
+Public Function LastCol(ByVal SheetName As String) As Double
+LastCol = ActiveWorkbook.Sheets(SheetName).UsedRange.Columns.Count
+End Function
+
+Public Function ColLastRow(ByVal ws As Worksheet, ByVal Col As String) As Double
+ColLastRow = ws.Cells(Rows.Count, Col).End(xlUp).Row
+End Function
+
+Public Function RowLastCol(ByVal ws As Worksheet, ByVal r As Double) As Double
+RowLastCol = ws.Cells(r, Columns.Count).End(xlToLeft).Column
+End Function
+
+Public Function ColName(ByVal ColNum As Double) As String
+ColName = VBA.Left$(Cells(1, ColNum).Address(1, 0), VBA.InStr(1, Cells(1, ColNum).Address(1, 0), "$") - 1)
+End Function
+
+Public Function CheckWSifExist(ByVal wsName As String) As Boolean
+Dim ws As Worksheet
+CheckWSifExist = False
+For Each ws In ActiveWorkbook.Worksheets
+    If ws.Name = wsName Then
+        CheckWSifExist = True
+        Exit For
+    End If
+Next ws
+End Function
