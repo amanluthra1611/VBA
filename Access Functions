@@ -1,0 +1,208 @@
+Option Compare Database
+Option Explicit
+Const AdminUsers = ""
+
+Public Function UserName() As String
+UserName = VBA.UCase$(VBA.Environ$("UserName"))
+End Function
+
+Public Function UserFullName() As String
+On Error GoTo Err
+If Application.DCount("*", "[usys_User]", "[ID]=UserName()") > 0 Then
+    UserFullName = Application.DLookup("[NAME]", "usys_User", "[ID] = UserName()")
+Else: GoTo Err
+End If
+Exit Function
+Err:
+    UserFullName = ""
+End Function
+
+Public Function LockDB()
+Application.DoCmd.LockNavigationPane (True)
+Application.SetOption "Show Hidden Objects", vbFalse
+Application.SetOption "Show System Objects", vbFalse
+Application.DoCmd.RunMacro "Autokeys"
+Application.SysCmd acSysCmdClearStatus
+Application.DoCmd.SetWarnings True
+Call DeleteObj.MyQuery("Pass")
+Call DeleteObj.MyTable("Temp")
+End Function
+
+Public Function UnLockDB()
+If VBA.InStr(1, AdminUsers, Functions.UserName) > 0 Then
+CurrentDb.Properties("AllowFullMenus") = True
+CurrentDb.Properties("AllowShortcutMenus") = True
+CurrentDb.Properties("AllowSpecialKeys") = True
+Application.SetOption "Show Hidden Objects", vbTrue
+Application.SetOption "Show System Objects", vbTrue
+Application.SysCmd acSysCmdClearStatus
+Application.DoCmd.SetWarnings True
+Application.DoCmd.LockNavigationPane (False)
+Application.DoCmd.SelectObject acTable, , True
+VBA.MsgBox "Database Unlocked", vbInformation + vbOKOnly
+Else: End If
+End Function
+
+Public Function SendEmailWithOutlook(ByVal MessageTo As String, ByVal MessageCC As String, ByVal Subject As String, ByVal MessageBody As String)
+Dim olApp As New Outlook.Application
+Dim olMailItem As Outlook.MailItem
+
+Set olMailItem = olApp.CreateItem(0)
+    With olMailItem
+        .To = MessageTo
+        .CC = MessageCC
+        .Subject = Subject
+        .Body = MessageBody
+        .Send 'Send the message immediately
+        '.Display 'Show message to user
+    End With
+
+    Set olMailItem = Nothing
+    Set olApp = Nothing
+
+End Function
+
+Public Function UKTime() As Date ' In Minutes
+    UKTime = MyTime.GetUCTTimeDate
+End Function
+
+Public Function UKDate() As Date
+    UKDate = VBA.Format$(MyTime.GetUCTTimeDate, "MM/DD/YYYY")
+End Function
+
+Public Function Clean(Optional ByVal InString As Variant = "xsysx") As Variant
+'Returns only printable character and non special character
+Dim x As Integer
+If InString = "xsysx" Or InString = Null Or VarType(InString) = vbNull Then
+Clean = ""
+Else
+    For x = 1 To VBA.Len(InString)
+        If Application.DLookup("[IS SPECIAL]", "usys_ASCII_Codes", "[CODE] = " & VBA.Asc(VBA.Mid$(InString, x, 1))) = False And _
+        Application.DLookup("[IS NOT PRINTABLE]", "usys_ASCII_Codes", "[CODE] = " & VBA.Asc(VBA.Mid$(InString, x, 1))) = False Then
+            Clean = Clean & VBA.Mid$(InString, x, 1)
+        End If
+    Next x
+End If
+If VBA.Len(Clean) > 0 Then
+Clean = VBA.Trim$(Clean)
+End If
+End Function
+
+Public Function FieldType(intType As Integer) As String
+Select Case intType
+    Case dbBoolean
+    FieldType = "dbBoolean"           '1
+    Case dbByte
+    FieldType = "dbByte"              '2
+    Case dbInteger
+    FieldType = "dbInteger"           '3
+    Case dbLong
+    FieldType = "dbLong"              '4
+    Case dbCurrency
+    FieldType = "dbCurrency"          '5
+    Case dbSingle
+    FieldType = "dbSingle"            '6
+    Case dbDouble
+    FieldType = "dbDouble"            '7
+    Case dbDate
+    FieldType = "dbDate"              '8
+    Case dbBinary
+    FieldType = "dbBinary"            '9
+    Case dbText
+    FieldType = "dbText"              '10
+    Case dbLongBinary
+    FieldType = "dbLongBinary"        '11
+    Case dbMemo
+    FieldType = "dbMemo"              '12
+    Case dbGUID
+    FieldType = "dbGuid"              '15
+End Select
+End Function
+
+Public Function GetBusinessDay(ByVal FromDate As Date, ByVal Offset As Long, Optional WorkDays As String = "23456", _
+    Optional ZeroOffsetBehavior As Long = 1)
+    
+    Dim DaysCounter As Long
+    Dim TestDate As Date
+    Dim Holidays, HolidayTblName, HolidayDateField As String
+    Dim rs As DAO.Recordset
+    HolidayTblName = "usys_Holidays"
+    HolidayDateField = "DATE"
+    
+    FromDate = DateValue(FromDate)
+    
+    If HolidayTblName <> "" Then
+        If Left(HolidayTblName, 1) <> "[" Then HolidayTblName = "[" & HolidayTblName & "]"
+        If Left(HolidayDateField, 1) <> "[" Then HolidayDateField = "[" & HolidayDateField & "]"
+        Set rs = CurrentDb.OpenRecordset("SELECT " & HolidayDateField & " FROM " & HolidayTblName)
+        Do Until rs.EOF
+            Holidays = Holidays & Format(rs.Fields(0).Value, "|yyyy-mm-dd|")
+            rs.MoveNext
+        Loop
+        rs.Close
+        Set rs = Nothing
+    End If
+    
+    Select Case Offset
+        Case 0
+            If InStr(1, WorkDays, Weekday(FromDate)) > 0 And _
+                InStr(1, Holidays, Format(FromDate, "|yyyy-mm-dd|")) = 0 Then
+                GetBusinessDay = FromDate
+            ElseIf ZeroOffsetBehavior = 0 Then
+                GetBusinessDay = FromDate
+            ElseIf ZeroOffsetBehavior < 0 Then
+                TestDate = FromDate
+                Do Until InStr(1, WorkDays, Weekday(TestDate)) > 0 And _
+                    InStr(1, Holidays, Format(TestDate, "|yyyy-mm-dd|")) = 0
+                    TestDate = DateAdd("d", -1, TestDate)
+                Loop
+                GetBusinessDay = TestDate
+            Else
+                TestDate = FromDate
+                Do Until InStr(1, WorkDays, Weekday(TestDate)) > 0 And _
+                    InStr(1, Holidays, Format(TestDate, "|yyyy-mm-dd|")) = 0
+                    TestDate = DateAdd("d", 1, TestDate)
+                Loop
+                GetBusinessDay = TestDate
+            End If
+        Case Is > 0
+            TestDate = FromDate
+            Do Until DaysCounter = Offset
+                TestDate = DateAdd("d", 1, TestDate)
+                If InStr(1, WorkDays, Weekday(TestDate)) > 0 And _
+                    InStr(1, Holidays, Format(TestDate, "|yyyy-mm-dd|")) = 0 Then
+                    DaysCounter = DaysCounter + 1
+                End If
+            Loop
+            GetBusinessDay = TestDate
+        Case Else
+            TestDate = FromDate
+            Do Until DaysCounter = Offset
+                TestDate = DateAdd("d", -1, TestDate)
+                If InStr(1, WorkDays, Weekday(TestDate)) > 0 And _
+                    InStr(1, Holidays, Format(TestDate, "|yyyy-mm-dd|")) = 0 Then
+                    DaysCounter = DaysCounter - 1
+                End If
+            Loop
+            GetBusinessDay = TestDate
+    End Select
+        
+End Function
+
+Public Function FirstDateOfMonth(ByVal inputDate As Date) As Date
+Dim dYear, dMonth As Integer
+Dim GetDate As Date
+    dYear = Year(inputDate)
+    dMonth = Month(inputDate)
+    GetDate = DateSerial(dYear, dMonth, 1)
+    FirstDateOfMonth = GetDate
+End Function
+
+Public Function LastDateOfMonth(ByVal inputDate As Date) As Date
+Dim dYear, dMonth As Integer
+Dim GetDate As Date
+    dYear = Year(inputDate)
+    dMonth = Month(inputDate)
+    GetDate = DateSerial(dYear, dMonth + 1, 0)
+    LastDateOfMonth = GetDate
+End Function
