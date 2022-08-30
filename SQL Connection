@@ -1,0 +1,80 @@
+Option Explicit
+
+Public Function Str(ByVal Server As String, ByVal DB As String) As String
+Dim strConn As String
+If Server = "xxx" Then
+    Str = "Driver={SQL Server};Server=" & Server & ";UID=xxx;PWD=xxx;Trusted_Connection=No;"
+Else
+    Str = "Provider=SQLOLEDB;Data Source=" & Server & ";Trusted_Connection=yes;"
+End If
+End Function
+
+Public Function Pstr(ByVal Server As String, ByVal DB As String) As String
+Dim strConn As String
+If Server = "xxx" Then
+    strConn = "UID=xxx;PWD=xxx;Integrated Sercurity=SSPI;"
+Else
+    strConn = "Trusted_Connection=yes;"
+End If
+
+Pstr = ""
+Pstr = "ODBC;DRIVER={SQL Server};SERVER=" & Server & ";DATABASE=" & DB & ";" & strConn
+End Function
+
+Public Function SQLConnection(ByVal Server As String, ByVal DB As String) As ADODB.Connection
+Dim cn As ADODB.Connection
+Set cn = New ADODB.Connection
+With cn
+    .ConnectionString = Str(Server, DB)
+    .ConnectionTimeout = 0
+    '.CursorLocation=adUseServer
+    .Mode = adModeReadWrite
+    On Error Resume Next
+    .Open
+    .DefaultDatabase = DB
+    On Error GoTo 0
+End With
+Set SQLConnection = cn
+If SQLConnection.State <> adStateOpen Then
+    VBA.MsgBox "Connection failed" & vbCrLf & "Server: " & Server & vbCrLf & "Database: " & DB, vbCritical + vbOKOnly, "Server Connection"
+    DefaultApp (True)
+    End
+End If
+End Function
+
+Public Function SQLOutput(ByVal Server As String, ByVal DB As String, ByVal Query As String) As ADODB.Recordset
+Dim cn As ADODB.Connection
+Dim comm As ADODB.Command
+Dim rs As ADODB.Recordset
+Set cn = New ADODB.Connection
+Set comm = New ADODB.Command
+Set rs = New ADODB.Recordset
+
+Set cn = SQLConnection(Server, DB)
+With comm
+    .ActiveConnection = cn
+    .CommandTimeout = 0
+    .CommandType = adCmdText
+    .CommandText = Query
+End With
+'MsgBox Query
+Set rs = comm.Execute
+Set SQLOutput = rs
+End Function
+
+Public Function SQLCommand(ByVal Server As String, ByVal DB As String, ByVal Query As String)
+Dim cn As ADODB.Connection
+Dim comm As ADODB.Command
+Set cn = New ADODB.Connection
+Set comm = New ADODB.Command
+
+Set cn = SQLConnection(Server, DB)
+With comm
+    .ActiveConnection = cn
+    .CommandTimeout = 0
+    .CommandType = adCmdText
+    .CommandText = Query
+    .Execute
+End With
+End Function
+
