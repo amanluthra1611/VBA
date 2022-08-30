@@ -190,3 +190,29 @@ XLMod = a - b * Int(a / b)
 XLMod = VBA.Format$(XLMod, "hh:mm")
 End Function
 
+Public Function FRCNTRCODE(r As Range) As String
+    Select Case VBA.Left$(r.Value, 3)
+        Case Is = "971"
+        FRCNTRCODE = "GP"
+        Case Is = "972"
+        FRCNTRCODE = "MQ"
+        Case Is = "973"
+        FRCNTRCODE = "GF"
+        Case Is = "974"
+        FRCNTRCODE = "RE"
+        Case Is = "975"
+        FRCNTRCODE = "PM"
+        Case Is = "976"
+        FRCNTRCODE = "YT"
+        Case Is = "980"
+        FRCNTRCODE = "MC"
+        Case Is = "986"
+        FRCNTRCODE = "WF"
+        Case Is = "987"
+        FRCNTRCODE = "PF"
+        Case Is = "988"
+        FRCNTRCODE = "NC"
+        Case Else
+        FRCNTRCODE = "FR"
+    End Select
+End Function
