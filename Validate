@@ -1,0 +1,134 @@
+Option Explicit
+
+Public Sub ValidateLocationFile(ByVal ws As Worksheet, ByVal LOB As String)
+Dim ColHeader, FormulaVal, ErrMsg, myWorkbookName As String
+Dim LastRow, LastRow2, LastCol, LOBCol, Col, r, c As Double
+Dim DATA2, wsVal As Worksheet
+myWorkbookName = ThisWorkbook.Name
+Set wsVal = ThisWorkbook.Sheets("Data Validations")
+
+If ws.Name = "x" Or ws.Name = "y" Or ws.Name = "z" Or ws.Name = "zz" Then
+    Application.StatusBar = "Validating Cleansing Data....."
+    LastRow = Functions.LastRow(ws)
+    LastCol = Functions.LastCol(ws)
+    If CheckWSifExist("DATA-2") = True Then
+    Application.DisplayAlerts = False
+    ActiveWorkbook.Sheets("DATA-2").Delete
+    End If
+    On Error GoTo ErrHandler
+    LOBCol = Application.WorksheetFunction.Match(LOB, wsVal.Range("1:1"), 0)
+    
+    If Functions.ColLastRow(wsVal, Functions.ColName(LOBCol)) > 2 Then
+        Sheets.Add.Name = "DATA-2"
+        Set DATA2 = Sheets("DATA-2")
+        DATA2.Range("A1").Select
+        DATA2.Range("A1:" & Functions.ColName(LastCol) & 1).Value = _
+        ws.Range("A1:" & Functions.ColName(LastCol) & 1).Value
+    End If
+    
+    Call GlobalProcedures.DefaultApp(False)
+    For c = 1 To LastCol
+    ColHeader = DATA2.Cells(1, c).Value
+        If Application.WorksheetFunction.CountIf(wsVal.Range("A:A"), "Location_" & ColHeader) > 0 Then
+            Col = Application.WorksheetFunction.Match("Location_" & ColHeader, wsVal.Range("A:A"), 0)
+            FormulaVal = wsVal.Cells(Col, LOBCol).Value
+            For r = 2 To LastRow
+            
+                If r + 10000 < LastRow Then
+                    LastRow2 = r + 10000
+                Else: LastRow2 = LastRow
+                End If
+                
+                DATA2.Range(ColName(c) & r & ":" & ColName(c) & LastRow2).Formula = _
+                VBA.Replace(VBA.Replace(VBA.Replace(FormulaVal, "@1", ws.Name), "@2", myWorkbookName), "@Col", ColName(Application.WorksheetFunction.Match(ColHeader, ws.Rows("1:1"), 0)))
+                
+                DATA2.Range(ColName(c) & r & ":" & ColName(c) & LastRow2).Calculate
+                DATA2.Range(ColName(c) & r & ":" & ColName(c) & LastRow2).Value = _
+                DATA2.Range(ColName(c) & r & ":" & ColName(c) & LastRow2).Value
+                
+            r = r + 10000
+            Next r
+        End If
+    Next c
+
+ws.Activate
+ws.Select
+ws.Range("A1").Select
+Call AddConditionalFormatting(ws)
+Call GlobalProcedures.DefaultApp(True)
+    If ErrMsg <> "" Then
+        VBA.MsgBox "Below headers are missing:" & VBA.Chr(10) & ErrMsg & VBA.Chr(10) & "Please add these before running validations", vbCritical + vbOKOnly
+    Else:
+    VBA.MsgBox "Data Looks Good!", vbInformation
+        If CheckWSifExist("DATA-2") = True Then
+        Application.DisplayAlerts = False
+        ActiveWorkbook.Sheets("DATA-2").Delete
+        End If
+       ws.Cells.Select
+       ws.Cells.FormatConditions.Delete
+       ws.Range("A1").select
+    End If
+
+Else
+    VBA.MsgBox "Seems you're trying to run Data Validations on a sheet which is of different format. This is only valid on:" & _
+    vbCrLf & "" & _
+    vbCrLf & "x" & _
+    vbCrLf & "y" & _
+    vbCrLf & "z" & _
+    vbCrLf & "zz", vbExclamation + vbOKOnly
+    If CheckWSifExist("DATA-2") = True Then
+        Application.DisplayAlerts = False
+        ActiveWorkbook.Sheets("DATA-2").Delete
+        ws.Cells.Select
+        ws.Cells.FormatConditions.Delete
+        ws.Range("A1").Select
+    End If
+End If
+
+Call GlobalProcedures.DefaultApp(True)
+Exit Sub
+ErrHandler:
+            VBA.MsgBox "Below error encountered while validating data:" & vbCrLf & Err.Number & vbCrLf & " - " & Err.Description, vbCritical + vbOKOnly
+            Call GlobalProcedures.DefaultApp(True)
+End Sub
+
+Public Sub AddConditionalFormatting(ByVal ws As Worksheet)
+Call GlobalProcedures.DefaultApp(False)
+ws.Cells.Select
+ws.Cells.FormatConditions.Delete
+Selection.FormatConditions.Add Type:=xlExpression, Formula1:= _
+    "=IF(AND('DATA-2'!A1<>"""",'DATA-2'!A1=FALSE),TRUE,FALSE)"
+Selection.FormatConditions(Selection.FormatConditions.Count).SetFirstPriority
+With Selection.FormatConditions(1).Font
+    .Bold = True
+    .Italic = False
+    .ThemeColor = xlThemeColorDark1
+    .TintAndShade = 0
+End With
+With Selection.FormatConditions(1).Interior
+    .PatternColorIndex = xlAutomatic
+    .Color = 6118911
+    .TintAndShade = 0
+End With
+Selection.FormatConditions(1).StopIfTrue = False
+ws.Range("A1").Select
+ws.Rows("1:1").Select
+Selection.FormatConditions.Add Type:=xlExpression, Formula1:= _
+    "=IF(COUNTIF('DATA-2'!A:A,FALSE)>0,TRUE,FALSE)"
+Selection.FormatConditions(Selection.FormatConditions.Count).SetFirstPriority
+With Selection.FormatConditions(1).Font
+    .Bold = True
+    .Italic = False
+    .ThemeColor = xlThemeColorDark1
+    .TintAndShade = 0
+End With
+With Selection.FormatConditions(1).Interior
+    .PatternColorIndex = xlAutomatic
+    .Color = 6118911
+    .TintAndShade = 0
+End With
+Selection.FormatConditions(1).StopIfTrue = False
+ws.Range("A1").Select
+Call GlobalProcedures.DefaultApp(True)
+End Sub
+
