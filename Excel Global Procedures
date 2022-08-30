@@ -1,0 +1,62 @@
+Option Explicit
+
+Public Sub DefaultApp(ByVal val As Boolean)
+If val = False Then
+    Application.Calculation = xlCalculationManual
+    Application.CutCopyMode = False
+    Application.Cursor = xlWait
+    Application.DisplayAlerts = False
+    'Application.DisplayStatusBar = True
+    'Application.EnableEvents = True
+    Application.ScreenUpdating = False
+Else
+    Application.Calculation = xlCalculationAutomatic
+    Application.CutCopyMode = False
+    Application.Cursor = xlDefault
+    Application.DisplayAlerts = True
+    Application.DisplayStatusBar = True
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    
+End If
+End Sub
+
+Public Sub LockSheet(ByVal SheetName As String)
+ActiveWorkbook.Sheets(SheetName).Protect Password:="xxx", _
+DrawingObjects:=True, Contents:=True, Scenarios:=True, _
+UserInterfaceOnly:=True, AllowFormattingCells:=False, AllowFormattingColumns:=False, _
+AllowFormattingRows:=False, AllowInsertingColumns:=False, AllowInsertingRows:=False, _
+AllowInsertingHyperlinks:=False, AllowDeletingColumns:=False, AllowDeletingRows:=False, _
+AllowSorting:=False, AllowFiltering:=False, AllowUsingPivotTables:=False
+End Sub
+
+Public Sub UnlockSheet(ByVal SheetName As String)
+ActiveWorkbook.Sheets(SheetName).Unprotect Password:="xxx"
+End Sub
+
+Public Sub DeleteWSifExist(ByVal wsName As String)
+Dim ws As Worksheet
+Dim ans As Integer
+
+For Each ws In ActiveWorkbook.Worksheets
+    If ws.Name = wsName Then
+    ws.Visible = xlSheetVisible
+        If ws.Name = "DATA-2" Then
+            Application.DisplayAlerts = False
+            ws.Delete
+            Application.DisplayAlerts = True
+        Else
+            ans = VBA.MsgBox("Do you want to delete " & ws.Name & " tab?", vbExclamation + vbYesNo)
+            If ans = vbYes Then
+                DefaultApp (False)
+                ws.Delete
+                DefaultApp (True)
+            Else
+                DefaultApp (True)
+                VBA.MsgBox "Process Canceled!", vbExclamation + vbOKOnly
+            End If
+        End If
+    End If
+Next ws
+
+End Sub
