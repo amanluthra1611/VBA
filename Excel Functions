@@ -46,3 +46,147 @@ For Each ws In ActiveWorkbook.Worksheets
     End If
 Next ws
 End Function
+
+Public Function Weekends(FromDate As Date, ToDate As Date) As Double
+Dim D, Ds, c As Double
+
+Ds = VBA.DateDiff("d", FromDate, ToDate)
+c = 0
+For D = 0 To Ds
+  If VBA.Weekday(FromDate + D) = vbSunday _
+    Or VBA.Weekday(FromDate + D) = vbSaturday Then
+    c = c + 1
+  End If
+Next D
+Weekends = c
+End Function
+
+Public Function Holidays(FromDate As Date, ToDate As Date) As Double
+Dim ws As Worksheet
+Dim D, Ds, c As Double
+Set ws = ThisWorkbook.Sheets("Source Data")
+Ds = VBA.DateDiff("d", FromDate, ToDate)
+c = 0
+For D = 0 To Ds
+'MsgBox VBA.Format$(FromDate + D, "dddd")
+'MsgBox Application.WorksheetFunction.NetworkDays_Intl(FromDate + D, FromDate + D, 1, ws.Range("ListHolidays"))
+  If Application.WorksheetFunction.NetworkDays_Intl(FromDate + D, FromDate + D, 1, ws.Range("ListHolidays")) = 0 And _
+    VBA.Weekday(FromDate + D) <> vbSunday And VBA.Weekday(FromDate + D) <> vbSaturday Then
+    c = c + 1
+  End If
+Next D
+Holidays = c
+End Function
+
+Public Function TATDueDate(ByVal LOB_Identifier As String, ByVal ReceivedDate As Date) As Date
+Dim ws As Worksheet
+Dim r, c, TATDays, FinalTATDays As Double
+TATDays = 0
+Set ws = ThisWorkbook.Sheets("Source Data")
+c = Functions.ColLastRow("Source Data", Functions.ColName(Application.WorksheetFunction.Match("TAT Days", ws.Rows("1:1"), 0)))
+
+For r = 2 To c
+    If VBA.CStr(ws.Cells(r, Application.WorksheetFunction.Match("LOB_Identifier", ws.Rows("1:1"), 0)).Value) = VBA.CStr(LOB_Identifier) And _
+    VBA.FormatDateTime(ReceivedDate, vbShortDate) >= VBA.FormatDateTime(ws.Cells(r, Application.WorksheetFunction.Match("Effective Date", ws.Rows("1:1"), 0)).Value, vbShortDate) And _
+    VBA.FormatDateTime(ReceivedDate, vbShortDate) <= VBA.FormatDateTime(ws.Cells(r, Application.WorksheetFunction.Match("End Date", ws.Rows("1:1"), 0)).Value, vbShortDate) Then
+        TATDays = ws.Cells(r, Application.WorksheetFunction.Match("TAT Days", ws.Rows("1:1"), 0)).Value
+        Exit For
+    Else: TATDays = 0
+    End If
+Next r
+
+FinalTATDays = TATDays + Weekends(ReceivedDate, ReceivedDate + TATDays + Holidays(ReceivedDate, ReceivedDate + TATDays)) + Holidays(ReceivedDate, ReceivedDate + TATDays + Weekends(ReceivedDate, ReceivedDate + TATDays))
+
+If VBA.Format$(ReceivedDate + FinalTATDays, "ddd") = "Sat" Then
+    TATDueDate = ReceivedDate + FinalTATDays + 2
+    Do Until Holidays(TATDueDate, TATDueDate) = 0
+        TATDueDate = TATDueDate + 1
+    Loop
+ElseIf VBA.Format$(ReceivedDate + FinalTATDays, "ddd") = "Sun" Then
+    TATDueDate = ReceivedDate + FinalTATDays + 1
+    Do Until Holidays(TATDueDate, TATDueDate) = 0
+        TATDueDate = TATDueDate + 1
+    Loop
+Else
+    TATDueDate = ReceivedDate + FinalTATDays
+End If
+
+TATDueDate = TATDueDate - (1 / 60 / 24)
+
+If CheckTime(TATDueDate) = True Then
+    TATDueDate = VBA.CDate(VBA.Int(TATDueDate))
+    Do Until Weekends(TATDueDate, TATDueDate) = 0 And Holidays(TATDueDate, TATDueDate) = 0
+    TATDueDate = TATDueDate - 1
+    Loop
+    TATDueDate = TATDueDate + (21.5 / 24)
+End If
+
+End Function
+
+
+Public Function TATDueDateInclQuery(ByVal LOB_Identifier As String, ByVal ReceivedDate As Date, ByVal QuerySentDate As Date, ByVal QueryReceivedDate As Date) As Date
+Dim ws As Worksheet
+Dim r, c, TATDays, FinalTATDays, TimeConsumed, Timeleft As Double
+TATDays = 0
+Set ws = ThisWorkbook.Sheets("Source Data")
+c = Functions.ColLastRow("Source Data", Functions.ColName(Application.WorksheetFunction.Match("TAT Days", ws.Rows("1:1"), 0)))
+
+For r = 2 To c
+    If VBA.CStr(ws.Cells(r, Application.WorksheetFunction.Match("LOB_Identifier", ws.Rows("1:1"), 0)).Value) = VBA.CStr(LOB_Identifier) And _
+    VBA.FormatDateTime(ReceivedDate, vbShortDate) >= VBA.FormatDateTime(ws.Cells(r, Application.WorksheetFunction.Match("Effective Date", ws.Rows("1:1"), 0)).Value, vbShortDate) And _
+    VBA.FormatDateTime(ReceivedDate, vbShortDate) <= VBA.FormatDateTime(ws.Cells(r, Application.WorksheetFunction.Match("End Date", ws.Rows("1:1"), 0)).Value, vbShortDate) Then
+        TATDays = ws.Cells(r, Application.WorksheetFunction.Match("TAT Days", ws.Rows("1:1"), 0)).Value
+        Exit For
+    Else: TATDays = 0
+    End If
+Next r
+
+TimeConsumed = QuerySentDate - ReceivedDate - Weekends(ReceivedDate, QuerySentDate) - Holidays(ReceivedDate, QuerySentDate)
+
+Timeleft = TATDays - TimeConsumed
+
+FinalTATDays = Timeleft + Weekends(QueryReceivedDate, QueryReceivedDate + Timeleft + Holidays(QueryReceivedDate, QueryReceivedDate + Timeleft)) + Holidays(QueryReceivedDate, QueryReceivedDate + Timeleft)
+
+If VBA.Format$(QueryReceivedDate + FinalTATDays, "ddd") = "Sat" Then
+    TATDueDateInclQuery = QueryReceivedDate + FinalTATDays + 2
+    Do Until Holidays(TATDueDateInclQuery, TATDueDateInclQuery) = 0
+        TATDueDateInclQuery = TATDueDateInclQuery + 1
+    Loop
+ElseIf VBA.Format$(QueryReceivedDate + FinalTATDays, "ddd") = "Sun" Then
+    TATDueDateInclQuery = QueryReceivedDate + FinalTATDays + 1
+    Do Until Holidays(TATDueDateInclQuery, TATDueDateInclQuery) = 0
+        TATDueDateInclQuery = TATDueDateInclQuery + 1
+    Loop
+Else
+    TATDueDateInclQuery = QueryReceivedDate + FinalTATDays
+End If
+
+TATDueDateInclQuery = TATDueDateInclQuery - (1 / 60 / 24)
+
+If CheckTime(TATDueDateInclQuery) = True Then
+    TATDueDateInclQuery = VBA.CDate(VBA.Int(TATDueDateInclQuery))
+    Do Until Weekends(TATDueDateInclQuery, TATDueDateInclQuery) = 0 And Holidays(TATDueDateInclQuery, TATDueDateInclQuery) = 0
+    TATDueDateInclQuery = TATDueDateInclQuery - 1
+    Loop
+    TATDueDateInclQuery = TATDueDateInclQuery + (21.5 / 24)
+End If
+
+End Function
+
+Public Function CheckTime(ByVal dDate As Date) As Boolean
+Dim dTime As Date
+dTime = XLMod(dDate, 1)
+Select Case dTime
+    Case TimeValue("0:01 AM") To TimeValue("14:00 PM")
+        CheckTime = True
+    Case Else
+        CheckTime = False
+End Select
+End Function
+
+Public Function XLMod(a, b)
+' This replicates the Excel MOD function
+XLMod = a - b * Int(a / b)
+XLMod = VBA.Format$(XLMod, "hh:mm")
+End Function
+
